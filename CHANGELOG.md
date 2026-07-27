@@ -1,25 +1,22 @@
 # Changelog
 
-## 0.2.1
-
-### Behoben
-- Service Worker aktualisiert neue Dateien sofort
-- Netzwerk wird vor dem Offline-Cache geprüft
-- CSS und JavaScript erhalten feste Versionsparameter
-- Versionsanzeige in den Einstellungen ergänzt
-
-## 0.2.0
-
-### Behoben
-- Datumsberechnung auf lokale Zeit umgestellt
-- Auswahl des Montags springt nicht mehr in die Vorwoche
-- Kalender lässt sich zuverlässig vorwärts und rückwärts bewegen
+## 0.3.0
 
 ### Hinzugefügt
-- Monats- und Jahresanzeige über der Wochenleiste
-- Pfeile zum Wechseln der Woche
-- Wischgeste nach links und rechts zum Wechseln der Woche
+- Gewohnheiten können beim Bearbeiten gelöscht werden
+- Gruppen können einschließlich ihrer Gewohnheiten gelöscht werden
+- Einstellbarer Schalter für haptisches Feedback auf unterstützten Geräten
+- Sortiermodus durch zwei Sekunden langes Drücken und anschließendes Ziehen
 
-## 0.1.0
+### Behoben
+- Abbrechen beim Erstellen schließt das Fenster ohne Namensprüfung oder Anlage
+- Doppeltippen löst keinen Seitenzoom mehr aus
 
-Erste testbare PWA-Version.
+### Überarbeitet
+- Mehr Abstand im Bereich Darstellung
+- App-Version ans Ende der Einstellungen verschoben
+- Verschiebepfeil aus der Gewohnheitszeile entfernt
+
+## 0.2.1
+
+- Aktualisierungssichere Cache-Strategie

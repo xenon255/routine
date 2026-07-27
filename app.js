@@ -3,6 +3,7 @@ const weekdays = ["Mo","Di","Mi","Do","Fr","Sa","So"];
 
 const defaultState = {
   theme: "system",
+  haptics: false,
   selectedDate: dateKey(new Date()),
   weekOffset: 0,
   calendarCursor: monthKey(new Date()),
@@ -20,6 +21,7 @@ defaultState.habits = [
 
 let state = loadState();
 let activeView = "todayView";
+let suppressHabitClickUntil = 0;
 
 function pad2(n){ return String(n).padStart(2,"0"); }
 function dateKey(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
@@ -32,11 +34,15 @@ function loadState(){
 }
 function completionKey(habitId, day){ return `${habitId}:${day}`; }
 function isDone(habitId, day){ return !!state.completions[completionKey(habitId, day)]; }
+function haptic(ms=12){
+  if (state.haptics && typeof navigator.vibrate === "function") navigator.vibrate(ms);
+}
 function toggleDone(habitId, day){
   const key = completionKey(habitId, day);
-  state.completions[key] = !state.completions[key];
-  if (!state.completions[key]) delete state.completions[key];
-  if (navigator.vibrate) navigator.vibrate(12);
+  const completed = !state.completions[key];
+  state.completions[key] = completed;
+  if (!completed) delete state.completions[key];
+  if (completed) haptic(12);
   saveState(); renderAll();
 }
 function weekdayIndex(d){ return (d.getDay()+6)%7; }
@@ -106,12 +112,11 @@ function renderToday(){
         <span class="group-meta">${done}/${gh.length}</span>
       </button><div class="habit-list">`;
     gh.forEach((h,idx)=>{
-      html += `<div class="habit ${isDone(h.id,state.selectedDate)?"done":""}" draggable="true" data-habit="${h.id}">
+      html += `<div class="habit ${isDone(h.id,state.selectedDate)?"done":""}" data-habit="${h.id}">
         <div class="check" data-toggle-habit="${h.id}"></div>
         <div class="habit-main" data-toggle-habit="${h.id}"><div class="habit-name">${escapeHtml(h.name)}</div></div>
         <div class="habit-actions">
-          <button class="icon-btn" data-move-up="${h.id}" title="Nach oben">↑</button>
-          <button class="icon-btn" data-edit-habit="${h.id}" title="Bearbeiten">···</button>
+          <button class="icon-btn" data-edit-habit="${h.id}" title="Bearbeiten" aria-label="Gewohnheit bearbeiten">···</button>
         </div>
       </div>`;
     });
@@ -138,32 +143,73 @@ function renderToday(){
   el.querySelectorAll("[data-toggle-group]").forEach(b=>b.onclick=()=>{
     const g=state.groups.find(x=>x.id===b.dataset.toggleGroup); g.collapsed=!g.collapsed; saveState(); renderToday();
   });
-  el.querySelectorAll("[data-toggle-habit]").forEach(b=>b.onclick=()=>toggleDone(b.dataset.toggleHabit,state.selectedDate));
-  el.querySelectorAll("[data-edit-habit]").forEach(b=>b.onclick=()=>openHabitForm(state.habits.find(h=>h.id===b.dataset.editHabit)));
-  el.querySelectorAll("[data-move-up]").forEach(b=>b.onclick=()=>moveHabitUp(b.dataset.moveUp));
-  enableDragAndDrop(el);
+  el.querySelectorAll("[data-toggle-habit]").forEach(b=>b.onclick=()=>{ if(Date.now()<suppressHabitClickUntil)return; toggleDone(b.dataset.toggleHabit,state.selectedDate); });
+  el.querySelectorAll("[data-edit-habit]").forEach(b=>b.onclick=e=>{e.stopPropagation();openHabitForm(state.habits.find(h=>h.id===b.dataset.editHabit));});
+  enableLongPressSorting(el);
 }
 
-function moveHabitUp(id){
-  const h=state.habits.find(x=>x.id===id);
-  const siblings=state.habits.filter(x=>x.groupId===h.groupId).sort((a,b)=>a.order-b.order);
-  const i=siblings.findIndex(x=>x.id===id);
-  if(i>0){ const prev=siblings[i-1]; [h.order,prev.order]=[prev.order,h.order]; saveState(); renderAll(); }
+function normalizeHabitOrders(groupId){
+  state.habits.filter(h=>h.groupId===groupId).sort((a,b)=>a.order-b.order).forEach((h,i)=>h.order=i);
 }
 
-function enableDragAndDrop(root){
-  let dragged=null;
+function moveHabitBefore(draggedId,targetId){
+  const dragged=state.habits.find(h=>h.id===draggedId);
+  const target=state.habits.find(h=>h.id===targetId);
+  if(!dragged || !target || dragged.id===target.id || dragged.groupId!==target.groupId) return;
+  const siblings=state.habits.filter(h=>h.groupId===dragged.groupId).sort((a,b)=>a.order-b.order);
+  const from=siblings.findIndex(h=>h.id===draggedId);
+  const to=siblings.findIndex(h=>h.id===targetId);
+  siblings.splice(to,0,siblings.splice(from,1)[0]);
+  siblings.forEach((h,i)=>h.order=i);
+}
+
+function enableLongPressSorting(root){
   root.querySelectorAll(".habit").forEach(row=>{
-    row.addEventListener("dragstart",()=>dragged=row.dataset.habit);
-    row.addEventListener("dragover",e=>e.preventDefault());
-    row.addEventListener("drop",e=>{
-      e.preventDefault();
-      const targetId=row.dataset.habit;
-      if(!dragged || dragged===targetId) return;
-      const a=state.habits.find(h=>h.id===dragged), b=state.habits.find(h=>h.id===targetId);
-      a.groupId=b.groupId; [a.order,b.order]=[b.order,a.order];
-      saveState(); renderAll();
+    let timer=null, sorting=false, pointerId=null, startX=0, startY=0;
+    const cancel=()=>{
+      clearTimeout(timer); timer=null;
+      if(!sorting) row.classList.remove("hold-pending");
+    };
+    row.addEventListener("pointerdown",e=>{
+      if(e.target.closest("button")) return;
+      pointerId=e.pointerId; startX=e.clientX; startY=e.clientY;
+      row.classList.add("hold-pending");
+      timer=setTimeout(()=>{
+        sorting=true;
+        suppressHabitClickUntil=Date.now()+1200;
+        row.classList.remove("hold-pending");
+        row.classList.add("sorting");
+        document.body.classList.add("is-sorting");
+        row.setPointerCapture?.(pointerId);
+        haptic(18);
+      },2000);
     });
+    row.addEventListener("pointermove",e=>{
+      if(!sorting){ if(Math.abs(e.clientX-startX)>8 || Math.abs(e.clientY-startY)>8) cancel(); return; }
+      e.preventDefault();
+      row.style.transform=`translateY(${e.clientY-row.getBoundingClientRect().top-row.offsetHeight/2}px) scale(1.02)`;
+      const beneath=document.elementFromPoint(e.clientX,e.clientY)?.closest(".habit");
+      if(beneath && beneath!==row && beneath.closest("[data-group]")===row.closest("[data-group]")){
+        moveHabitBefore(row.dataset.habit,beneath.dataset.habit);
+        const list=row.parentElement;
+        const ordered=state.habits.filter(h=>h.groupId===state.habits.find(x=>x.id===row.dataset.habit).groupId).sort((a,b)=>a.order-b.order);
+        ordered.forEach(h=>{const node=list.querySelector(`[data-habit="${h.id}"]`); if(node) list.appendChild(node);});
+      }
+    },{passive:false});
+    const finish=()=>{
+      cancel();
+      if(sorting){
+        sorting=false;
+        row.classList.remove("sorting");
+        row.style.transform="";
+        document.body.classList.remove("is-sorting");
+        normalizeHabitOrders(state.habits.find(h=>h.id===row.dataset.habit)?.groupId);
+        saveState(); renderAll();
+      }
+    };
+    row.addEventListener("pointerup",finish);
+    row.addEventListener("pointercancel",finish);
+    row.addEventListener("contextmenu",e=>e.preventDefault());
   });
 }
 
@@ -207,26 +253,37 @@ function openDayDetails(k){
 
 function renderSettings(){
   const el=document.getElementById("settingsView");
+  const hapticSupported=typeof navigator.vibrate === "function";
+  if(typeof state.haptics!=="boolean") state.haptics=false;
   el.innerHTML=`<h1 class="page-title">Einstellungen</h1>
-    <section class="settings-card"><strong>Darstellung</strong>
+    <section class="settings-card display-settings"><strong>Darstellung</strong>
       <div class="segmented">
         ${["system","light","dark"].map(v=>`<button data-theme-choice="${v}" class="${state.theme===v?"active":""}">
           ${{system:"System",light:"Hell",dark:"Dunkel"}[v]}</button>`).join("")}
       </div>
+    </section>
+    <section class="settings-card"><strong>Feedback</strong>
+      <label class="switch-row ${hapticSupported?"":"unsupported"}">
+        <span><span class="setting-name">Kurzes Vibrieren</span><small>${hapticSupported?"Beim Abschließen einer Gewohnheit":"Auf diesem Gerät nicht unterstützt"}</small></span>
+        <input type="checkbox" data-haptics ${state.haptics?"checked":""} ${hapticSupported?"":"disabled"}>
+        <span class="switch"></span>
+      </label>
     </section>
     <section class="settings-card"><strong>Datensicherung</strong>
       <button class="settings-button" data-export>Daten exportieren</button>
       <button class="settings-button" data-import>Daten importieren</button>
       <input id="importFile" type="file" accept="application/json" hidden>
     </section>
-    <section class="settings-card"><strong>App-Version</strong>
-      <p class="version-label">Routine 0.2.1</p>
-    </section>
     <section class="settings-card"><strong>Verwaltung</strong>
       <button class="settings-button" data-manage-groups>Gruppen bearbeiten</button>
-      <button class="settings-button" data-reset>Alle Daten zurücksetzen</button>
+      <button class="settings-button danger-text" data-reset>Alle Daten zurücksetzen</button>
+    </section>
+    <section class="settings-card version-card"><strong>App-Version</strong>
+      <p class="version-label">Routine 0.3</p>
     </section>`;
   el.querySelectorAll("[data-theme-choice]").forEach(b=>b.onclick=()=>{state.theme=b.dataset.themeChoice;saveState();applyTheme();renderSettings();});
+  const hapticToggle=el.querySelector("[data-haptics]");
+  hapticToggle.onchange=()=>{state.haptics=hapticToggle.checked;saveState(); if(state.haptics) haptic(18);};
   el.querySelector("[data-export]").onclick=exportData;
   el.querySelector("[data-import]").onclick=()=>el.querySelector("#importFile").click();
   el.querySelector("#importFile").onchange=importData;
@@ -249,6 +306,29 @@ function importData(e){
   const r=new FileReader(); r.onload=()=>{try{state=JSON.parse(r.result);saveState();applyTheme();renderAll();alert("Import erfolgreich.");}catch{alert("Ungültige Sicherungsdatei.");}}; r.readAsText(file);
 }
 
+function deleteHabit(id){
+  const habit=state.habits.find(h=>h.id===id); if(!habit)return;
+  if(!confirm(`Gewohnheit „${habit.name}“ wirklich löschen?`))return;
+  state.habits=state.habits.filter(h=>h.id!==id);
+  Object.keys(state.completions).filter(k=>k.startsWith(`${id}:`)).forEach(k=>delete state.completions[k]);
+  normalizeHabitOrders(habit.groupId);
+  saveState(); document.getElementById("formDialog").close(); renderAll();
+}
+function deleteGroup(id){
+  const group=state.groups.find(g=>g.id===id); if(!group)return;
+  const count=state.habits.filter(h=>h.groupId===id).length;
+  const message=count
+    ? `Gruppe „${group.name}“ und ihre ${count} Gewohnheit${count===1?"":"en"} wirklich löschen?`
+    : `Gruppe „${group.name}“ wirklich löschen?`;
+  if(!confirm(message))return;
+  const habitIds=new Set(state.habits.filter(h=>h.groupId===id).map(h=>h.id));
+  state.habits=state.habits.filter(h=>h.groupId!==id);
+  state.groups=state.groups.filter(g=>g.id!==id);
+  Object.keys(state.completions).filter(k=>habitIds.has(k.split(":")[0])).forEach(k=>delete state.completions[k]);
+  state.groups.sort((a,b)=>a.order-b.order).forEach((g,i)=>g.order=i);
+  saveState(); document.getElementById("formDialog").close(); renderAll();
+}
+
 function openActionSheet(){ document.getElementById("actionSheet").showModal(); }
 function populateGroups(selected){
   const sel=document.getElementById("groupSelect");
@@ -265,6 +345,10 @@ function openHabitForm(habit=null){
   document.getElementById("monthDayInput").value=habit?.monthDay||1;
   renderWeekdayPicker(habit?.weekdays||[0]);
   document.getElementById("habitFields").style.display="block";
+  const deleteButton=document.getElementById("deleteEntityButton");
+  deleteButton.hidden=!habit;
+  deleteButton.textContent="Gewohnheit löschen";
+  deleteButton.onclick=()=>deleteHabit(habit.id);
   updateFrequencyFields();
   document.getElementById("formDialog").showModal();
 }
@@ -274,6 +358,10 @@ function openGroupForm(group=null){
   document.getElementById("entityId").value=group?.id||"";
   document.getElementById("nameInput").value=group?.name||"";
   document.getElementById("habitFields").style.display="none";
+  const deleteButton=document.getElementById("deleteEntityButton");
+  deleteButton.hidden=!group;
+  deleteButton.textContent="Gruppe löschen";
+  deleteButton.onclick=()=>deleteGroup(group.id);
   document.getElementById("formDialog").showModal();
 }
 function renderWeekdayPicker(selected){
@@ -287,6 +375,11 @@ function updateFrequencyFields(){
   document.getElementById("monthlyFields").style.display=f==="monthly"?"block":"none";
 }
 document.getElementById("frequencySelect").addEventListener("change",updateFrequencyFields);
+
+document.getElementById("cancelFormButton").addEventListener("click",()=>{
+  document.getElementById("entityForm").reset();
+  document.getElementById("formDialog").close();
+});
 
 document.getElementById("entityForm").addEventListener("submit",e=>{
   e.preventDefault();
@@ -329,7 +422,9 @@ function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",
 function renderAll(){
   if (!state.calendarCursor) state.calendarCursor = monthKey(new Date());
   if (typeof state.weekOffset !== "number") state.weekOffset = 0;
+  if (typeof state.haptics !== "boolean") state.haptics = false;
   applyTheme(); renderToday(); renderCalendar(); renderSettings();
 }
 renderAll();
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=3");
