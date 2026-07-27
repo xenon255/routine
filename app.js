@@ -4,7 +4,8 @@ const weekdays = ["Mo","Di","Mi","Do","Fr","Sa","So"];
 const defaultState = {
   theme: "system",
   selectedDate: dateKey(new Date()),
-  calendarCursor: new Date().toISOString().slice(0,7),
+  weekOffset: 0,
+  calendarCursor: monthKey(new Date()),
   groups: [
     { id: crypto.randomUUID(), name: "Morgenroutine", order: 0, collapsed: false },
     { id: crypto.randomUUID(), name: "Fitness", order: 1, collapsed: false }
@@ -20,8 +21,10 @@ defaultState.habits = [
 let state = loadState();
 let activeView = "todayView";
 
-function dateKey(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()).toISOString().slice(0,10); }
-function parseKey(k){ const [y,m,d]=k.split("-").map(Number); return new Date(y,m-1,d); }
+function pad2(n){ return String(n).padStart(2,"0"); }
+function dateKey(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function monthKey(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`; }
+function parseKey(k){ const [y,m,d]=k.split("-").map(Number); return new Date(y,m-1,d,12,0,0); }
 function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function loadState(){
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || structuredClone(defaultState); }
@@ -59,21 +62,31 @@ function applyTheme(){
 }
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
-function weekDates(centerKey){
+function weekDates(centerKey, offset=0){
   const center = parseKey(centerKey);
   const start = new Date(center);
-  start.setDate(center.getDate()-weekdayIndex(center));
+  start.setDate(center.getDate()-weekdayIndex(center)+(offset*7));
   return Array.from({length:7},(_,i)=>{ const d=new Date(start); d.setDate(start.getDate()+i); return d; });
 }
 
 function renderToday(){
   const el = document.getElementById("todayView");
-  const dates = weekDates(state.selectedDate);
+  if (typeof state.weekOffset !== "number") state.weekOffset = 0;
+  const dates = weekDates(state.selectedDate, state.weekOffset);
   const p = progress(state.selectedDate);
   const due = dueHabits(state.selectedDate);
   const groups = [...state.groups].sort((a,b)=>a.order-b.order);
+  const rangeStart = dates[0], rangeEnd = dates[6];
+  const rangeLabel = rangeStart.getMonth() === rangeEnd.getMonth()
+    ? new Intl.DateTimeFormat("de-DE",{month:"long",year:"numeric"}).format(rangeStart)
+    : `${new Intl.DateTimeFormat("de-DE",{month:"short"}).format(rangeStart)} – ${new Intl.DateTimeFormat("de-DE",{month:"short",year:"numeric"}).format(rangeEnd)}`;
 
-  let html = `<div class="week-strip"><div class="week-row">`;
+  let html = `<div class="week-nav">
+      <button class="week-arrow" data-week-prev aria-label="Vorherige Woche">‹</button>
+      <strong class="week-label">${rangeLabel}</strong>
+      <button class="week-arrow" data-week-next aria-label="Nächste Woche">›</button>
+    </div>
+    <div class="week-strip"><div class="week-row">`;
   dates.forEach(d=>{
     const k=dateKey(d), today=dateKey(new Date());
     html += `<button class="day-btn ${k===today?"today":""} ${k===state.selectedDate?"selected":""}" data-date="${k}">
@@ -107,6 +120,21 @@ function renderToday(){
   el.innerHTML = html;
 
   el.querySelectorAll("[data-date]").forEach(b=>b.onclick=()=>{state.selectedDate=b.dataset.date;saveState();renderAll();});
+  el.querySelector("[data-week-prev]").onclick=()=>{ state.weekOffset--; saveState(); renderToday(); };
+  el.querySelector("[data-week-next]").onclick=()=>{ state.weekOffset++; saveState(); renderToday(); };
+
+  const strip = el.querySelector(".week-strip");
+  let touchStartX = null;
+  strip.addEventListener("touchstart",e=>{ touchStartX=e.changedTouches[0].clientX; },{passive:true});
+  strip.addEventListener("touchend",e=>{
+    if(touchStartX===null) return;
+    const dx = e.changedTouches[0].clientX-touchStartX;
+    if(Math.abs(dx)>45){
+      state.weekOffset += dx<0 ? 1 : -1;
+      saveState(); renderToday();
+    }
+    touchStartX=null;
+  },{passive:true});
   el.querySelectorAll("[data-toggle-group]").forEach(b=>b.onclick=()=>{
     const g=state.groups.find(x=>x.id===b.dataset.toggleGroup); g.collapsed=!g.collapsed; saveState(); renderToday();
   });
@@ -165,7 +193,7 @@ function renderCalendar(){
 function shiftMonth(delta){
   const [y,m]=state.calendarCursor.split("-").map(Number);
   const d=new Date(y,m-1+delta,1);
-  state.calendarCursor=d.toISOString().slice(0,7); saveState(); renderCalendar();
+  state.calendarCursor=monthKey(d); saveState(); renderCalendar();
 }
 function openDayDetails(k){
   const due=dueHabits(k), p=progress(k);
@@ -295,6 +323,10 @@ document.querySelectorAll(".tab").forEach(tab=>tab.onclick=()=>{
 });
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }
-function renderAll(){ applyTheme(); renderToday(); renderCalendar(); renderSettings(); }
+function renderAll(){
+  if (!state.calendarCursor) state.calendarCursor = monthKey(new Date());
+  if (typeof state.weekOffset !== "number") state.weekOffset = 0;
+  applyTheme(); renderToday(); renderCalendar(); renderSettings();
+}
 renderAll();
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

@@ -109,3 +109,23 @@ menu button:last-child { background: var(--fg); color: var(--bg); }
   .tabbar { padding-left: calc((100vw - 620px)/2); padding-right: calc((100vw - 620px)/2); }
   #fab { right: calc((100vw - 620px)/2 + 20px); }
 }
+
+
+.week-nav {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  margin: 0 0 4px;
+}
+.week-label {
+  text-align: center;
+  font-size: 15px;
+  text-transform: capitalize;
+}
+.week-arrow {
+  border: 0;
+  background: transparent;
+  font-size: 28px;
+  padding: 4px;
+}
+.week-strip { touch-action: pan-y; }

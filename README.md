@@ -2,7 +2,7 @@
 
 Minimalistische Progressive Web App zur Verwaltung täglicher, wöchentlicher und monatlicher Gewohnheiten.
 
-## Aktueller Stand: v0.1
+## Aktueller Stand: v0.2
 
 - Heute-Ansicht mit Wochenleiste
 - Gruppen und Gewohnheiten
