@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Routine" />
+  <title>Routine</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="app">
+    <section id="todayView" class="view active"></section>
+    <section id="calendarView" class="view"></section>
+    <section id="settingsView" class="view"></section>
+  </main>
+
+  <button id="fab" aria-label="Hinzufügen">+</button>
+
+  <nav class="tabbar" aria-label="Navigation">
+    <button class="tab active" data-view="todayView"><span>⌂</span><small>Heute</small></button>
+    <button class="tab" data-view="calendarView"><span>▦</span><small>Kalender</small></button>
+    <button class="tab" data-view="settingsView"><span>⚙︎</span><small>Einstellungen</small></button>
+  </nav>
+
+  <dialog id="actionSheet">
+    <button data-action="newHabit">Neue Gewohnheit</button>
+    <button data-action="newGroup">Neue Gruppe</button>
+    <button data-action="cancel">Abbrechen</button>
+  </dialog>
+
+  <dialog id="formDialog">
+    <form method="dialog" id="entityForm">
+      <h2 id="formTitle"></h2>
+      <input type="hidden" id="entityType">
+      <input type="hidden" id="entityId">
+      <label>Name<input id="nameInput" required maxlength="40"></label>
+
+      <div id="habitFields">
+        <label>Gruppe<select id="groupSelect"></select></label>
+        <label>Rhythmus
+          <select id="frequencySelect">
+            <option value="daily">Täglich</option>
+            <option value="weekly">Wöchentlich</option>
+            <option value="monthly">Monatlich</option>
+          </select>
+        </label>
+        <div id="weeklyFields">
+          <span class="fieldLabel">Wochentage</span>
+          <div class="weekdayPicker" id="weekdayPicker"></div>
+        </div>
+        <div id="monthlyFields">
+          <label>Tag im Monat<input id="monthDayInput" type="number" min="1" max="31" value="1"></label>
+        </div>
+      </div>
+
+      <menu>
+        <button value="cancel">Abbrechen</button>
+        <button id="saveButton" value="default">Speichern</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dayDialog">
+    <div id="dayDialogContent"></div>
+    <button onclick="document.getElementById('dayDialog').close()">Schließen</button>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
