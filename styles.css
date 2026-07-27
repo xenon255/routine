@@ -129,3 +129,5 @@ menu button:last-child { background: var(--fg); color: var(--bg); }
   padding: 4px;
 }
 .week-strip { touch-action: pan-y; }
+
+.version-label { margin: 8px 0 0; color: var(--muted); }

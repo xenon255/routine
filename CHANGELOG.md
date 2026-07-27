@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+### Behoben
+- Service Worker aktualisiert neue Dateien sofort
+- Netzwerk wird vor dem Offline-Cache geprüft
+- CSS und JavaScript erhalten feste Versionsparameter
+- Versionsanzeige in den Einstellungen ergänzt
+
 ## 0.2.0
 
 ### Behoben

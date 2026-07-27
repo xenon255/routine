@@ -219,6 +219,9 @@ function renderSettings(){
       <button class="settings-button" data-import>Daten importieren</button>
       <input id="importFile" type="file" accept="application/json" hidden>
     </section>
+    <section class="settings-card"><strong>App-Version</strong>
+      <p class="version-label">Routine 0.2.1</p>
+    </section>
     <section class="settings-card"><strong>Verwaltung</strong>
       <button class="settings-button" data-manage-groups>Gruppen bearbeiten</button>
       <button class="settings-button" data-reset>Alle Daten zurücksetzen</button>
