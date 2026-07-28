@@ -16,6 +16,8 @@ let state = loadState();
 let activeView = "todayView";
 let sortMode = false;
 let suppressHabitClickUntil = 0;
+let activeHabitDrag = null;
+let ignoreMouseDragUntil = 0;
 
 function pad2(n){ return String(n).padStart(2,"0"); }
 function dateKey(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
@@ -99,14 +101,47 @@ function enableSortModeEntry(root){
     row.addEventListener("contextmenu",e=>e.preventDefault());
   });
 }
+function startHabitDrag(handle,clientX,clientY,inputType){
+  if(activeHabitDrag||!sortMode)return;
+  const row=handle.closest(".habit"),list=row?.parentElement,groupId=row?.closest("[data-group]")?.dataset.group;
+  if(!row||!list||!groupId)return;
+  const rect=row.getBoundingClientRect(),placeholder=document.createElement("div");
+  placeholder.className="habit-placeholder";placeholder.style.height=`${rect.height}px`;
+  list.insertBefore(placeholder,row);
+  row.classList.add("sorting","drag-floating");
+  Object.assign(row.style,{width:`${rect.width}px`,left:`${rect.left}px`,top:`${rect.top}px`,height:`${rect.height}px`});
+  document.body.appendChild(row);document.body.classList.add("dragging-habit");
+  activeHabitDrag={row,list,placeholder,groupId,offsetY:clientY-rect.top,inputType};
+  updateHabitDrag(clientY);haptic(10);
+}
+function updateHabitDrag(clientY){
+  const drag=activeHabitDrag;if(!drag)return;
+  const maxTop=Math.max(0,window.innerHeight-drag.row.offsetHeight),top=Math.max(0,Math.min(maxTop,clientY-drag.offsetY));
+  drag.row.style.top=`${top}px`;
+  const siblings=[...drag.list.querySelectorAll(".habit")];
+  const before=siblings.find(node=>{const rect=node.getBoundingClientRect();return clientY<rect.top+rect.height/2;});
+  if(before)drag.list.insertBefore(drag.placeholder,before);else drag.list.appendChild(drag.placeholder);
+  const edge=88;if(clientY<edge)window.scrollBy(0,-10);else if(clientY>window.innerHeight-edge)window.scrollBy(0,10);
+}
+function finishHabitDrag(){
+  const drag=activeHabitDrag;if(!drag)return;
+  drag.list.insertBefore(drag.row,drag.placeholder);drag.placeholder.remove();
+  drag.row.classList.remove("sorting","drag-floating");drag.row.removeAttribute("style");
+  [...drag.list.querySelectorAll(".habit")].forEach((node,i)=>{const habit=state.habits.find(x=>x.id===node.dataset.habit);if(habit)habit.order=i;});
+  normalizeHabitOrders(drag.groupId);document.body.classList.remove("dragging-habit");activeHabitDrag=null;saveState();
+}
 function enableHandleSorting(root){
-  root.querySelectorAll("[data-drag-handle]").forEach(handle=>{let dragged=null,pointerId=null;
-    handle.addEventListener("pointerdown",e=>{e.preventDefault();dragged=handle.closest(".habit");pointerId=e.pointerId;handle.setPointerCapture?.(pointerId);dragged.classList.add("sorting");haptic(10);});
-    handle.addEventListener("pointermove",e=>{if(!dragged)return;e.preventDefault();const target=document.elementFromPoint(e.clientX,e.clientY)?.closest(".habit");if(!target||target===dragged||target.parentElement!==dragged.parentElement)return;const list=dragged.parentElement;const rect=target.getBoundingClientRect();list.insertBefore(dragged,e.clientY<rect.top+rect.height/2?target:target.nextSibling);});
-    const finish=()=>{if(!dragged)return;const groupId=dragged.closest("[data-group]").dataset.group;[...dragged.parentElement.querySelectorAll(".habit")].forEach((node,i)=>{const h=state.habits.find(x=>x.id===node.dataset.habit);if(h)h.order=i;});normalizeHabitOrders(groupId);dragged.classList.remove("sorting");dragged=null;saveState();};
-    handle.addEventListener("pointerup",finish);handle.addEventListener("pointercancel",finish);
+  root.querySelectorAll("[data-drag-handle]").forEach(handle=>{
+    handle.addEventListener("touchstart",e=>{const touch=e.touches[0];if(!touch)return;e.preventDefault();e.stopPropagation();ignoreMouseDragUntil=Date.now()+900;startHabitDrag(handle,touch.clientX,touch.clientY,"touch");},{passive:false});
+    handle.addEventListener("mousedown",e=>{if(e.button!==0||Date.now()<ignoreMouseDragUntil)return;e.preventDefault();e.stopPropagation();startHabitDrag(handle,e.clientX,e.clientY,"mouse");});
+    handle.addEventListener("keydown",e=>{if(!["ArrowUp","ArrowDown"].includes(e.key))return;e.preventDefault();const row=handle.closest(".habit"),list=row.parentElement,target=e.key==="ArrowUp"?row.previousElementSibling:row.nextElementSibling;if(!target?.classList.contains("habit"))return;if(e.key==="ArrowUp")list.insertBefore(row,target);else list.insertBefore(target,row);[...list.querySelectorAll(".habit")].forEach((node,i)=>{const habit=state.habits.find(x=>x.id===node.dataset.habit);if(habit)habit.order=i;});saveState();renderToday();});
   });
 }
+document.addEventListener("touchmove",e=>{if(!activeHabitDrag||activeHabitDrag.inputType!=="touch")return;const touch=e.touches[0];if(!touch)return;e.preventDefault();updateHabitDrag(touch.clientY);},{passive:false});
+document.addEventListener("touchend",()=>{if(activeHabitDrag?.inputType==="touch")finishHabitDrag();},{passive:false});
+document.addEventListener("touchcancel",()=>{if(activeHabitDrag?.inputType==="touch")finishHabitDrag();},{passive:false});
+document.addEventListener("mousemove",e=>{if(activeHabitDrag?.inputType!=="mouse")return;e.preventDefault();updateHabitDrag(e.clientY);});
+document.addEventListener("mouseup",()=>{if(activeHabitDrag?.inputType==="mouse")finishHabitDrag();});
 
 function renderCalendar(){
   const el=document.getElementById("calendarView"),[y,m]=state.calendarCursor.split("-").map(Number),first=new Date(y,m-1,1),last=new Date(y,m,0),offset=weekdayIndex(first),monthName=new Intl.DateTimeFormat("de-DE",{month:"long",year:"numeric"}).format(first);
@@ -120,7 +155,7 @@ function openDayDetails(k){const due=dueHabits(k),p=progress(k),dateLabel=new In
 
 function renderSettings(){
   const el=document.getElementById("settingsView"),hapticSupported=typeof navigator.vibrate==="function";if(typeof state.haptics!=="boolean")state.haptics=false;
-  el.innerHTML=`<h1 class="page-title">Einstellungen</h1><section class="settings-card display-settings"><strong>Darstellung</strong><div class="segmented">${["system","light","dark"].map(v=>`<button data-theme-choice="${v}" class="${state.theme===v?"active":""}">${{system:"System",light:"Hell",dark:"Dunkel"}[v]}</button>`).join("")}</div></section><section class="settings-card"><strong>Feedback</strong><label class="switch-row ${hapticSupported?"":"unsupported"}"><span><span class="setting-name">Kurzes Vibrieren</span><small>${hapticSupported?"Beim Abschließen einer Gewohnheit":"Auf diesem Gerät nicht unterstützt"}</small></span><input type="checkbox" data-haptics ${state.haptics?"checked":""} ${hapticSupported?"":"disabled"}><span class="switch"></span></label></section><section class="settings-card"><strong>Datensicherung</strong><button class="settings-button" data-export>Daten exportieren</button><button class="settings-button" data-import>Daten importieren</button><input id="importFile" type="file" accept="application/json" hidden></section><section class="settings-card"><strong>Verwaltung</strong><button class="settings-button" data-sort>Reihenfolge bearbeiten</button><button class="settings-button" data-manage-groups>Gruppen bearbeiten</button><button class="settings-button danger-text" data-reset>Alle Daten zurücksetzen</button></section><section class="settings-card version-card"><strong>App-Version</strong><p class="version-label">Routine 0.4</p></section>`;
+  el.innerHTML=`<h1 class="page-title">Einstellungen</h1><section class="settings-card display-settings"><strong>Darstellung</strong><div class="segmented">${["system","light","dark"].map(v=>`<button data-theme-choice="${v}" class="${state.theme===v?"active":""}">${{system:"System",light:"Hell",dark:"Dunkel"}[v]}</button>`).join("")}</div></section><section class="settings-card"><strong>Feedback</strong><label class="switch-row ${hapticSupported?"":"unsupported"}"><span><span class="setting-name">Kurzes Vibrieren</span><small>${hapticSupported?"Beim Abschließen einer Gewohnheit":"Auf diesem Gerät nicht unterstützt"}</small></span><input type="checkbox" data-haptics ${state.haptics?"checked":""} ${hapticSupported?"":"disabled"}><span class="switch"></span></label></section><section class="settings-card"><strong>Datensicherung</strong><button class="settings-button" data-export>Daten exportieren</button><button class="settings-button" data-import>Daten importieren</button><input id="importFile" type="file" accept="application/json" hidden></section><section class="settings-card"><strong>Verwaltung</strong><button class="settings-button" data-sort>Reihenfolge bearbeiten</button><button class="settings-button" data-manage-groups>Gruppen bearbeiten</button><button class="settings-button danger-text" data-reset>Alle Daten zurücksetzen</button></section><section class="settings-card version-card"><strong>App-Version</strong><p class="version-label">Routine 0.4.1</p></section>`;
   el.querySelectorAll("[data-theme-choice]").forEach(b=>b.onclick=()=>{state.theme=b.dataset.themeChoice;saveState();applyTheme();renderSettings();});
   const hapticToggle=el.querySelector("[data-haptics]");hapticToggle.onchange=()=>{state.haptics=hapticToggle.checked;saveState();if(state.haptics)haptic(18);};
   el.querySelector("[data-export]").onclick=exportData;el.querySelector("[data-import]").onclick=()=>el.querySelector("#importFile").click();el.querySelector("#importFile").onchange=importData;
@@ -148,4 +183,4 @@ document.getElementById("actionSheet").addEventListener("click",e=>{const a=e.ta
 document.querySelectorAll(".tab").forEach(tab=>tab.onclick=()=>{if(sortMode)exitSortMode();activeView=tab.dataset.view;document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t===tab));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===activeView));document.getElementById("fab").style.display=activeView==="settingsView"?"none":"block";});
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));}
 function renderAll(){if(!state.calendarCursor)state.calendarCursor=monthKey(new Date());if(typeof state.weekOffset!=="number")state.weekOffset=0;if(typeof state.haptics!=="boolean")state.haptics=false;applyTheme();renderToday();renderCalendar();renderSettings();}
-renderAll();document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js?v=4");
+renderAll();document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js?v=4.1");

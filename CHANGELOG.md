@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1
+
+### Behoben
+- Ziehen über die Sortiergriffe funktioniert jetzt zuverlässig auf iPhone und iOS-PWAs
+- Touchbewegungen werden während des Sortierens global verfolgt, auch wenn der Finger den Griff verlässt
+- sichtbarer Platzhalter und schwebende Gewohnheitskarte während des Verschiebens
+- größere Touchfläche der Sortiergriffe
+
+
 ## 0.4.0
 
 ### Hinzugefügt

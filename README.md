@@ -2,11 +2,11 @@
 
 Minimalistische Progressive Web App zur Verwaltung täglicher, wöchentlicher und monatlicher Gewohnheiten.
 
-## Aktueller Stand: v0.4
+## Aktueller Stand: v0.4.1
 
 - Heute-Ansicht mit Wochenleiste und Heute-Schaltfläche
 - Gruppen und Gewohnheiten erstellen, bearbeiten und löschen
-- zuverlässiger Sortiermodus per Langdruck oder Einstellungen
+- iPhone-kompatibler Sortiermodus per Langdruck oder Einstellungen
 - tägliche, wöchentliche und monatliche Wiederholungen
 - Kalender mit Fortschrittsringen
 - Hell-, Dunkel- und Systemmodus
