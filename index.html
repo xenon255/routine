@@ -10,7 +10,7 @@
   <title>Routine</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <main id="app">
@@ -18,7 +18,7 @@
     <section id="calendarView" class="view"></section>
     <section id="settingsView" class="view"></section>
   </main>
-
+  <button id="sortDoneButton" hidden>Fertig</button>
   <button id="fab" aria-label="Hinzufügen">+</button>
 
   <nav class="tabbar" aria-label="Navigation">
@@ -26,7 +26,6 @@
     <button class="tab" data-view="calendarView"><span>▦</span><small>Kalender</small></button>
     <button class="tab" data-view="settingsView"><span>⚙︎</span><small>Einstellungen</small></button>
   </nav>
-
   <dialog id="actionSheet">
     <button data-action="newHabit">Neue Gewohnheit</button>
     <button data-action="newGroup">Neue Gruppe</button>
@@ -39,7 +38,6 @@
       <input type="hidden" id="entityType">
       <input type="hidden" id="entityId">
       <label>Name<input id="nameInput" required maxlength="40"></label>
-
       <div id="habitFields">
         <label>Gruppe<select id="groupSelect"></select></label>
         <label>Rhythmus
@@ -57,7 +55,6 @@
           <label>Tag im Monat<input id="monthDayInput" type="number" min="1" max="31" value="1"></label>
         </div>
       </div>
-
       <button type="button" id="deleteEntityButton" class="delete-entity" hidden></button>
       <menu>
         <button type="button" id="cancelFormButton">Abbrechen</button>
@@ -71,6 +68,6 @@
     <button onclick="document.getElementById('dayDialog').close()">Schließen</button>
   </dialog>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

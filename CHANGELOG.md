@@ -1,22 +1,20 @@
 # Changelog
 
-## 0.3.0
+## 0.4.0
 
 ### Hinzugefügt
-- Gewohnheiten können beim Bearbeiten gelöscht werden
-- Gruppen können einschließlich ihrer Gewohnheiten gelöscht werden
-- Einstellbarer Schalter für haptisches Feedback auf unterstützten Geräten
-- Sortiermodus durch zwei Sekunden langes Drücken und anschließendes Ziehen
-
-### Behoben
-- Abbrechen beim Erstellen schließt das Fenster ohne Namensprüfung oder Anlage
-- Doppeltippen löst keinen Seitenzoom mehr aus
+- Heute-Schaltfläche außerhalb der aktuellen Woche
+- expliziter Sortiermodus mit sichtbaren Griffen und Fertig-Schaltfläche
+- Sortiermodus zusätzlich über Einstellungen erreichbar
 
 ### Überarbeitet
-- Mehr Abstand im Bereich Darstellung
-- App-Version ans Ende der Einstellungen verschoben
-- Verschiebepfeil aus der Gewohnheitszeile entfernt
+- Langdruck startet nach kurzer Rückmeldung den Sortiermodus, statt unmittelbar zu ziehen
+- Reihenfolge wird beim Ziehen direkt und dauerhaft gespeichert
+- Wechsel einer Gewohnheit in eine andere Gruppe korrigiert die Reihenfolge beider Gruppen
+- Cache und Assets auf Version 4 angehoben
 
-## 0.2.1
+## 0.3.0
 
-- Aktualisierungssichere Cache-Strategie
+- Gewohnheiten und Gruppen bearbeiten und löschen
+- haptisches Feedback
+- Export und Import
